@@ -635,6 +635,23 @@ const ArrowDownOnSquareIcon: React.FC<IconProps> = (props) => (
   </svg>
 )
 
+const MenuIcon: React.FC<IconProps> = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+    {...props}
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
+    />
+  </svg>
+)
+
 // =================================================================================
 // SERVICES
 // =================================================================================
@@ -2270,8 +2287,19 @@ const Sidebar: React.FC<{
   onBack: () => void
   showBack: boolean
   onChangeApiKey: () => void
+  isSidebarOpen: boolean
+  onCloseSidebar: () => void
   children?: React.ReactNode
-}> = ({ currentView, onNav, onBack, showBack, onChangeApiKey, children }) => {
+}> = ({
+  currentView,
+  onNav,
+  onBack,
+  showBack,
+  onChangeApiKey,
+  isSidebarOpen,
+  onCloseSidebar,
+  children
+}) => {
   const NavItem: React.FC<{
     label: string
     icon: React.FC<React.SVGProps<SVGSVGElement>>
@@ -2291,8 +2319,22 @@ const Sidebar: React.FC<{
     </button>
   )
 
+  const handleNavClick = (view: 'topics' | 'history' | 'saved-questions') => {
+    onNav(view)
+    onCloseSidebar()
+  }
+
+  const handleChangeApiKeyClick = () => {
+    onChangeApiKey()
+    onCloseSidebar()
+  }
+
   return (
-    <aside className="w-80 bg-gray-800/50 p-6 flex-shrink-0 flex flex-col h-screen overflow-y-auto">
+    <aside
+      className={`fixed inset-y-0 left-0 z-40 w-72 bg-gray-800 p-6 flex-shrink-0 flex flex-col h-screen overflow-y-auto transition-transform duration-300 ease-in-out transform md:relative md:translate-x-0 md:w-80 ${
+        isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}
+    >
       <div className="flex items-center mb-8">
         {showBack ? (
           <button
@@ -2313,19 +2355,19 @@ const Sidebar: React.FC<{
         <NavItem
           label="All Topics"
           icon={HomeIcon}
-          onClick={() => onNav('topics')}
+          onClick={() => handleNavClick('topics')}
           isActive={currentView === 'topics'}
         />
         <NavItem
           label="Quiz History"
           icon={HistoryIcon}
-          onClick={() => onNav('history')}
+          onClick={() => handleNavClick('history')}
           isActive={currentView === 'history'}
         />
         <NavItem
           label="Saved Questions"
           icon={BookmarkSquareIcon}
-          onClick={() => onNav('saved-questions')}
+          onClick={() => handleNavClick('saved-questions')}
           isActive={currentView === 'saved-questions'}
         />
       </nav>
@@ -2338,7 +2380,7 @@ const Sidebar: React.FC<{
         <NavItem
           label="Change API Key"
           icon={CogIcon}
-          onClick={onChangeApiKey}
+          onClick={handleChangeApiKeyClick}
           isActive={false}
         />
       </div>
@@ -3166,6 +3208,7 @@ const App: React.FC = () => {
   const [filterMode, setFilterMode] = useState<'all' | 'bookmarked'>('all')
   const [toasts, setToasts] = useState<ToastMessage[]>([])
   const [isApiKeySet, setIsApiKeySet] = useState(false)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   const { bookmarkedTopics, toggleBookmark, isTopicBookmarked } = useBookmarks()
 
@@ -3336,15 +3379,28 @@ const App: React.FC = () => {
     <div className="bg-gray-900 text-white min-h-screen font-sans">
       {!isApiKeySet && <ApiKeyModal onKeySaved={handleApiKeySaved} />}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
       <div
-        className={`flex ${!isApiKeySet ? 'blur-sm pointer-events-none' : ''}`}
+        className={`relative min-h-screen md:flex ${
+          !isApiKeySet ? 'blur-sm pointer-events-none' : ''
+        }`}
       >
+        {isSidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/60 z-30 md:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
         <Sidebar
           currentView={currentView}
           onNav={handleNav}
           onBack={handleBack}
           showBack={!!selectedTopic || path.length > 0}
           onChangeApiKey={handleChangeApiKey}
+          isSidebarOpen={isSidebarOpen}
+          onCloseSidebar={() => setIsSidebarOpen(false)}
         >
           {currentView === 'topics' && (
             <>
@@ -3357,7 +3413,14 @@ const App: React.FC = () => {
           )}
         </Sidebar>
 
-        <main className="flex-1 p-8 overflow-y-auto h-screen">
+        <main className="flex-1 overflow-y-auto h-screen p-4 sm:p-6 md:p-8">
+          <button
+            className="md:hidden p-2 mb-4 text-gray-400 hover:text-white"
+            onClick={() => setIsSidebarOpen(true)}
+            aria-label="Open navigation menu"
+          >
+            <MenuIcon className="w-6 h-6" />
+          </button>
           {renderContent()}
         </main>
       </div>
