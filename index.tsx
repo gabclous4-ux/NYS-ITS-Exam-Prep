@@ -652,6 +652,23 @@ const MenuIcon: React.FC<IconProps> = (props) => (
   </svg>
 )
 
+const LightbulbIcon: React.FC<IconProps> = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+    {...props}
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.311a6.01 6.01 0 00-1.5-1.84m1.5 1.84a6.01 6.01 0 01-1.5-1.84m-6.75-12.75a6.01 6.01 0 011.5-.189m-1.5.189a6.01 6.01 0 00-1.5-.189m12 .589a6.01 6.01 0 001.5.189m-1.5-.189a6.01 6.01 0 01-1.5.189m-9 7.5a6.01 6.01 0 011.5.189m-1.5-.189a6.01 6.01 0 00-1.5.189m9-7.5a6.01 6.01 0 001.5.189m-1.5-.189a6.01 6.01 0 01-1.5.189M9 12a3 3 0 116 0 3 3 0 01-6 0z"
+    />
+  </svg>
+)
+
 // =================================================================================
 // SERVICES
 // =================================================================================
@@ -1361,6 +1378,38 @@ const generateQuiz = async (
     throw new Error(
       'Failed to generate the quiz. The AI model may be temporarily unavailable.'
     )
+  }
+}
+
+const generateHint = async (question: QuizQuestion): Promise<string> => {
+  try {
+    const ai = getAiClient()
+    const prompt = `
+            You are a quiz assistant. For the following multiple-choice question, provide a short, one-sentence hint.
+            The hint must help the user deduce the correct answer without directly revealing it.
+            Focus on the core concept being tested.
+
+            Question: "${question.question}"
+            Options:
+            A) ${question.options[0]}
+            B) ${question.options[1]}
+            C) ${question.options[2]}
+            D) ${question.options[3]}
+
+            Correct Answer is option index: ${question.correctAnswerIndex}
+
+            Generate a concise hint:
+        `
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt
+    })
+
+    return response.text.trim()
+  } catch (error) {
+    console.error('Error generating hint:', error)
+    throw new Error('Failed to generate a hint from the AI model.')
   }
 }
 
@@ -2727,6 +2776,9 @@ const QuizView: React.FC<{
   const [timeLeft, setTimeLeft] = useState<number | null>(null)
   const timerIntervalRef = useRef<number | null>(null)
 
+  const [hints, setHints] = useState<(string | null)[]>([])
+  const [isHintLoading, setIsHintLoading] = useState<boolean>(false)
+
   const useSavedQuestions = () => {
     const [savedQuestions, setSavedQuestions] = useState<
       Record<string, SavedQuestion>
@@ -2830,6 +2882,7 @@ const QuizView: React.FC<{
       setError('')
       setQuestions([])
       setAnswers([])
+      setHints([])
       setCurrentQuestionIndex(0)
       setIsFinished(false)
 
@@ -2847,6 +2900,7 @@ const QuizView: React.FC<{
             selectedOption: null
           })
         )
+        setHints(new Array(quizQuestions.length).fill(null))
       } catch (err: any) {
         setError(
           err.message ||
@@ -2896,6 +2950,25 @@ const QuizView: React.FC<{
         topicTitle: topic.title
       })
       addToast('Question saved!')
+    }
+  }
+
+  const handleGetHint = async () => {
+    if (isHintLoading || hints[currentQuestionIndex] !== null) return
+
+    setIsHintLoading(true)
+    try {
+      const hintText = await generateHint(questions[currentQuestionIndex])
+      setHints((prev) => {
+        const newHints = [...prev]
+        newHints[currentQuestionIndex] = hintText
+        return newHints
+      })
+    } catch (err) {
+      console.error(err)
+      addToast('Could not generate a hint at this time.')
+    } finally {
+      setIsHintLoading(false)
     }
   }
 
@@ -3079,6 +3152,38 @@ const QuizView: React.FC<{
               <TimerDisplay timeLeft={timeLeft} duration={timerDuration} />
             )}
           </div>
+        </div>
+
+        <div className="my-4">
+          {hints[currentQuestionIndex] ? (
+            <div className="p-4 bg-yellow-900/50 border-l-4 border-yellow-500 text-yellow-300 rounded-r-lg animate-fade-in-fast">
+              <div className="flex items-start">
+                <LightbulbIcon className="w-6 h-6 mr-3 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Hint</p>
+                  <p>{hints[currentQuestionIndex]}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handleGetHint}
+              disabled={isHintLoading || currentAnswer?.selectedOption !== null}
+              className="flex items-center px-4 py-2 bg-gray-600/80 text-gray-300 text-sm font-semibold rounded-lg shadow-sm hover:bg-gray-700 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isHintLoading ? (
+                <>
+                  <SpinnerIcon className="w-5 h-5 mr-2" />
+                  Getting Hint...
+                </>
+              ) : (
+                <>
+                  <LightbulbIcon className="w-5 h-5 mr-2" />
+                  Get a Hint
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
